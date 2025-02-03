@@ -81,18 +81,38 @@ class PromptConverter:
     def load_artist_triggers():
         """
         从同目录下的 CSV 文件 danbooru_art.csv 中加载艺术家 tag，
-        表中要求有一列 "trigger" (不区分大小写)。
+        文件要求有一列 "trigger"（不区分大小写）。
+        
+        如果 CSV 文件只有一行数据（没有表头）或只有 header 一行，
+        则会尝试将这一行内容作为 trigger 进行加载。
         """
         import csv
         try:
             with open("danbooru_art.csv", "r", encoding="utf-8", newline="") as csvfile:
-                reader = csv.DictReader(csvfile)
-                PromptConverter.artist_triggers = {
-                    row["trigger"].strip() for row in reader 
-                    if row.get("trigger") and row["trigger"].strip()
-                }
+                # 读取前 1024 个字节用于判断是否有表头
+                sample = csvfile.read(1024)
+                csvfile.seek(0)
+                sniffer = csv.Sniffer()
+                has_header = sniffer.has_header(sample)
+                if has_header:
+                    reader = csv.DictReader(csvfile)
+                    # 正常情况：根据 "trigger" 列获取所有数据行的内容
+                    triggers = {
+                        row["trigger"].strip() for row in reader
+                        if row.get("trigger") and row["trigger"].strip()
+                    }
+                    # 如果没有读取到数据，但 fieldnames 存在，可能 CSV 文件仅有一行，
+                    # 如果唯一的 fieldnames 不是 "trigger"，则认为该字段名就是 trigger 数据
+                    if not triggers and reader.fieldnames:
+                        if len(reader.fieldnames) == 1 and reader.fieldnames[0].lower() != "trigger":
+                            triggers = {reader.fieldnames[0].strip()}
+                else:
+                    # CSV 没有表头，使用 csv.reader 直接读取第一列作为 trigger
+                    reader = csv.reader(csvfile)
+                    triggers = {row[0].strip() for row in reader if row and row[0].strip()}
+                PromptConverter.artist_triggers = triggers
         except Exception as e:
-            # 出现异常时保持为空集合
+            # 出现异常则置为空集合
             PromptConverter.artist_triggers = set()
 
     @staticmethod
