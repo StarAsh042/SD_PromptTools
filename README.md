@@ -1,6 +1,8 @@
 # SD提示词工具集
 
 一款用于提示词格式转换与图片元数据提取的工具，支持 NovelAI 与 Stable Diffusion 两种格式之间的互转，同时可从生成的图片中提取提示词和参数信息。
+![01](https://github.com/user-attachments/assets/f944f237-f875-4fc3-9f5f-bfb0feeb8788)
+![02](https://github.com/user-attachments/assets/698cb4b0-ab0c-4bfa-bf1e-db4aa480459c)
 
 ## 功能
 
