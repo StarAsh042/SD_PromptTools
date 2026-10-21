@@ -153,6 +153,27 @@ def test_metadata_messages_follow_locale():
     assert ui.extract_metadata("definitely-missing.png") == {"error": "The file is missing or invalid."}
 
 
+def test_metadata_column_forwards_drops():
+    ui = GradioInterface()
+
+    zones = [
+        block for block in ui.demo.blocks.values()
+        if isinstance(block, gr.Column) and "sdp-dropzone" in (block.elem_classes or [])
+    ]
+    head = ui.demo.get_config_file()["head"]
+
+    assert len(zones) == 1
+    assert "forwardDropToUploader" in head
+    assert "DataTransfer" in head
+
+
+def test_css_covers_upload_container():
+    ui = GradioInterface()
+
+    assert ".upload-container" in ui.demo.css
+    assert "min-height: 440px" in ui.demo.css
+
+
 def test_head_localizes_footer_text():
     head = GradioInterface().demo.get_config_file()["head"]
 
