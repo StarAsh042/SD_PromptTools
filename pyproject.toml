@@ -9,6 +9,7 @@ description = "SD 提示词工具集：NAI / SD 双向转换与图片元数据�
 requires-python = ">=3.10"
 dependencies = [
     "gradio==4.19.2",
+    "huggingface_hub>=0.19.3,<1.0",
     "Pillow>=8.0",
     "numpy>=1.19.0",
 ]
