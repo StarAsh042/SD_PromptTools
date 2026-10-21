@@ -111,14 +111,14 @@ fn parse_brackets(
             '[' => square += 1,
             '}' if curly > outer_curly => {
                 if !current.is_empty() {
-                    result.push((current.trim().to_string(), weight_at(curly, square)));
+                    result.push((py_trim(&current).to_string(), weight_at(curly, square)));
                     current.clear();
                 }
                 curly -= 1;
             }
             ']' if square > outer_square => {
                 if !current.is_empty() {
-                    result.push((current.trim().to_string(), weight_at(curly, square)));
+                    result.push((py_trim(&current).to_string(), weight_at(curly, square)));
                     current.clear();
                 }
                 square -= 1;
@@ -126,9 +126,9 @@ fn parse_brackets(
             ',' => {
                 if !current.is_empty() {
                     if curly > outer_curly || square > outer_square {
-                        result.push((current.trim().to_string(), weight_at(curly, square)));
+                        result.push((py_trim(&current).to_string(), weight_at(curly, square)));
                     } else {
-                        result.push((current.trim().to_string(), 1.0));
+                        result.push((py_trim(&current).to_string(), 1.0));
                     }
                     current.clear();
                 }
@@ -140,13 +140,85 @@ fn parse_brackets(
 
     if !current.is_empty() {
         if curly > outer_curly || square > outer_square {
-            result.push((current.trim().to_string(), weight_at(curly, square)));
+            result.push((py_trim(&current).to_string(), weight_at(curly, square)));
         } else {
-            result.push((current.trim().to_string(), 1.0));
+            result.push((py_trim(&current).to_string(), 1.0));
         }
     }
 
     (result, i)
+}
+
+/// Python 的 `\s` 与 `str.strip()` 把 \x1c-\x1f 也算作空白，Rust 的
+/// `char::is_whitespace()` 不含这几个控制字符；这里补齐，保证清理与裁剪结果一致。
+fn is_py_space(c: char) -> bool {
+    c.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&c)
+}
+
+fn py_trim(s: &str) -> &str {
+    s.trim_matches(is_py_space)
+}
+
+/// 转义标签内部的括号，避免被 SD 当成权重语法。
+///
+/// 规则（与 Python 实现逐字符对齐）：
+/// - 未转义的 `(`：前一个字符不是 `\` 或 `_` 时插入 `_`，再补 `\(`；
+/// - 前一个字符是 `_` 或位于开头：只补 `\(`；
+/// - 未转义的 `)`：补 `\)`。
+#[pyfunction]
+fn escape_inner_parentheses(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::with_capacity(text.len() + 8);
+    for (i, &c) in chars.iter().enumerate() {
+        match c {
+            '(' => {
+                if i > 0 && chars[i - 1] != '\\' && chars[i - 1] != '_' {
+                    out.push_str("_\\(");
+                } else {
+                    out.push_str("\\(");
+                }
+            }
+            ')' => {
+                if i == 0 || chars[i - 1] != '\\' {
+                    out.push_str("\\)");
+                } else {
+                    out.push(')');
+                }
+            }
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// 清理输出：中文标点转英文逗号、逗号前后空白去掉、连续逗号合并、去掉首尾逗号。
+#[pyfunction]
+fn clean_output(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut skip_space = false;
+    for ch in text.chars() {
+        let c = match ch {
+            '。' | '、' => ',',
+            other => other,
+        };
+        if c == ',' {
+            while matches!(out.chars().last(), Some(last) if is_py_space(last)) {
+                out.pop();
+            }
+            if !out.is_empty() && !out.ends_with(',') {
+                out.push(',');
+            }
+            skip_space = true;
+        } else if is_py_space(c) {
+            if !skip_space {
+                out.push(c);
+            }
+        } else {
+            skip_space = false;
+            out.push(c);
+        }
+    }
+    out.trim_matches(',').to_string()
 }
 
 #[pymodule]
@@ -154,5 +226,7 @@ fn sdprompt_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(core_version, m)?)?;
     m.add_function(wrap_pyfunction!(round_half_up, m)?)?;
     m.add_function(wrap_pyfunction!(parse_brackets, m)?)?;
+    m.add_function(wrap_pyfunction!(escape_inner_parentheses, m)?)?;
+    m.add_function(wrap_pyfunction!(clean_output, m)?)?;
     Ok(())
 }
