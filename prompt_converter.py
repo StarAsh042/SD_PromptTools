@@ -77,10 +77,6 @@ class PromptConverter:
     # 新增类属性，用于存储 CSV 表中加载的艺术家 tag（来自 danbooru_art.csv）
     artist_triggers = set()
 
-class PromptConverter:
-    # 新增类属性，用于存储 CSV 表中加载的艺术家 tag（来自 danbooru_art.csv）
-    artist_triggers = set()
-
     @staticmethod
     def load_artist_triggers():
         """
@@ -215,6 +211,60 @@ class PromptConverter:
                     # 对 tag 内部括号进行转义处理
                     escaped_tag = escape_inner_parentheses(tag)
                     result_tags.append(f"({escaped_tag}:{weight:.3f})")
+            result = ", ".join(result_tags)
+            result = clean_output(result)
+            return result
+        except Exception as e:
+            return f"Error: {str(e)}"
+
+    @staticmethod
+    @handle_escape
+    def sd_to_nai(prompt: str) -> str:
+        """
+        将 SD 格式转换为 NAI 格式
+        （此处保留原实现逻辑，但增加了对标签内括号前插入下划线的处理，
+         同时对最终结果进行清理：将中文标点替换为逗号、删除多余的逗号和空格）
+        """
+        if not isinstance(prompt, str):
+            return "Error: Input must be a string"
+        try:
+            prompt = prompt.strip()
+            prompt = re.sub(r',\s*,', ',', prompt)
+            prompt = prompt.strip(',')
+            pattern = r'\((.*?):([\d.]+)\)'
+            tags = []
+            last_end = 0
+            for match in re.finditer(pattern, prompt):
+                if match.start() > last_end:
+                    plain_text = prompt[last_end:match.start()].strip(' ,')
+                    if plain_text:
+                        tags.append((plain_text, 1.0))
+                tag = match.group(1).strip()
+                # 还原 SD 转换过程中对括号的转义
+                tag = tag.replace('\\(', '(').replace('\\)', ')')
+                # 如果 tag 中的左括号前没有下划线，则插入下划线
+                tag = re.sub(r'(?<!_)[(]', '_(', tag)
+                weight = float(match.group(2))
+                tags.append((tag, weight))
+                last_end = match.end()
+            if last_end < len(prompt):
+                plain_text = prompt[last_end:].strip(' ,')
+                if plain_text:
+                    tags.append((plain_text, 1.0))
+            result_tags = []
+            for tag, weight in tags:
+                # 对 tag 进行 artist tag 前缀判断
+                tag = PromptConverter.add_artist_prefix(tag)
+                if abs(weight - 1.0) < 0.001:
+                    result_tags.append(tag)
+                else:
+                    if weight > 1.0:
+                        count = round((weight - 1.0) / Config.WEIGHT_STEP)
+                        result_str = '{' * count + tag + '}' * count
+                    else:
+                        count = round((1.0 - weight) / Config.WEIGHT_STEP)
+                        result_str = '[' * count + tag + ']' * count
+                    result_tags.append(result_str)
             result = ", ".join(result_tags)
             result = clean_output(result)
             return result
