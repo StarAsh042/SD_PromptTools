@@ -138,6 +138,17 @@ python start.py
 
 
 
+## 常见问题
+
+**启动后立刻退出，日志里有 `httpx.ReadTimeout` 或 `ConnectTimeout`**
+
+机器装了系统代理，而 Gradio 打开浏览器前会先探活 `127.0.0.1:8080`，代理把这个请求绕到了外网。
+程序启动时会自动把回环地址并入 `NO_PROXY` 并关闭 Gradio 遥测；如果仍然出现，检查外部环境变量是否把 `NO_PROXY` 覆盖掉了。
+
+**`ModuleNotFoundError: No module named 'sdprompt_core'`**
+
+Rust 扩展没装。用 `start.bat`（或 `python start.py`）会自动补装。
+
 ## 参与开发
 
 > **给外部贡献者的重要说明**
