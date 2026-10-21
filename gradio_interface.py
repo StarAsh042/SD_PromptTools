@@ -83,10 +83,8 @@ class GradioInterface:
                         type="filepath"
                     )
                 with gr.Column(scale=1):
-                    meta_output = gr.JSON(
-                        label="元数据",
-                        height=500
-                    )
+                    # gr.JSON 不支持 height 参数（gradio 4.x 起），传了会在实例化时抛 TypeError
+                    meta_output = gr.JSON(label="元数据")
                     img_input.change(
                         fn=MetadataExtractor.extract_metadata,
                         inputs=[img_input],
