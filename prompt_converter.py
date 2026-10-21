@@ -105,6 +105,13 @@ class PromptConverter:
             PromptConverter.artist_triggers = set()
 
     @staticmethod
+    def round_to_step(number: float, step: float = Config.WEIGHT_STEP) -> float:
+        """
+        已废弃原先按步长舍入的方式，此处保留接口（如有其他需求可修改）
+        """
+        return round_half_up(number, 3)
+
+    @staticmethod
     def parse_and_count_brackets(text: str, pos: int = 0, outer_curly: int = 0, outer_square: int = 0) -> tuple[list, int]:
         """
         递归解析括号并计算标签权重。
