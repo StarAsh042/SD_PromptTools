@@ -138,6 +138,16 @@ def test_metadata_messages_follow_locale():
     assert ui.extract_metadata("definitely-missing.png") == {"error": "The file is missing or invalid."}
 
 
+def test_upload_area_gets_class_and_css():
+    ui = GradioInterface()
+
+    images = [b for b in ui.demo.blocks.values() if isinstance(b, gr.Image)]
+
+    assert images[0].elem_classes == ["sdp-upload"]
+    assert "sdp-upload" in ui.demo.css
+    assert "min-height: 440px" in ui.demo.css
+
+
 def test_switching_back_restores_chinese():
     ui = GradioInterface()
     ui.switch_language("en-US")
