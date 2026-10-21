@@ -86,6 +86,18 @@ def test_head_contains_tab_labels_for_both_locales():
     assert "提示词格式转换器" in head
 
 
+def test_head_localizes_gradio_builtin_text():
+    ui = GradioInterface()
+
+    head = ui.demo.get_config_file()["head"]
+
+    assert "localizeFrameworkText" in head
+    assert "将图像拖放到此处" in head
+    assert "Drop Image Here" in head
+    assert "点击上传" in head and "Click to Upload" in head
+    assert "MutationObserver" in head
+
+
 def test_head_sets_html_lang_and_bilingual_titles():
     ui = GradioInterface()
 

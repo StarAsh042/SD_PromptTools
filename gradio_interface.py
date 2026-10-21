@@ -11,8 +11,22 @@ _HEAD_TEMPLATE = """<script>
 (function () {
   var TITLES = __TITLES__;
   var TAB_LABELS = __TAB_LABELS__;
-  // gr.Tab 是布局块，没有 update() 方法，后端发的 label 更新前端不一定应用；
-  // 这里按顺序把标签页按钮的文字直接改掉，作为兜底。
+  var currentLocale = __DEFAULT_LOCALE__;
+
+  // Gradio 自带的文案（上传框、清除、下载等）会被编译进前端 bundle，
+  // 语言由 navigator.language 决定，没有对外接口。这里按文本节点精确匹配替换。
+  var FRAMEWORK_PAIRS = [
+    ["将图像拖放到此处", "Drop Image Here"],
+    ["将文件拖放到此处", "Drop File Here"],
+    ["将音频拖放到此处", "Drop Audio Here"],
+    ["将视频拖放到此处", "Drop Video Here"],
+    ["点击上传", "Click to Upload"],
+    ["- 或 -", "- or -"],
+    ["或", "or"],
+    ["清除", "Clear"],
+    ["下载", "Download"]
+  ];
+
   function applyTabLabels(locale) {
     var labels = TAB_LABELS[locale];
     if (!labels) {
@@ -23,13 +37,52 @@ _HEAD_TEMPLATE = """<script>
       buttons[i].textContent = labels[i];
     }
   }
-  window.__sdpSetLocale = function (locale) {
-    document.documentElement.lang = locale;
-    if (TITLES[locale]) {
-      document.title = TITLES[locale];
+
+  function localizeFrameworkText() {
+    if (!document.body) {
+      return;
     }
-    applyTabLabels(locale);
-  };
+    var toEnglish = currentLocale !== "zh-CN";
+    var map = {};
+    FRAMEWORK_PAIRS.forEach(function (pair) {
+      map[toEnglish ? pair[0] : pair[1]] = toEnglish ? pair[1] : pair[0];
+    });
+    var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+    var node;
+    while ((node = walker.nextNode())) {
+      var raw = node.nodeValue || "";
+      var key = raw.trim();
+      if (Object.prototype.hasOwnProperty.call(map, key)) {
+        node.nodeValue = raw.replace(key, map[key]);
+      }
+    }
+  }
+
+  var localizeTimer = null;
+  function scheduleLocalize() {
+    if (localizeTimer) {
+      return;
+    }
+    localizeTimer = window.setTimeout(function () {
+      localizeTimer = null;
+      localizeFrameworkText();
+    }, 60);
+  }
+
+  function startFrameworkObserver() {
+    localizeFrameworkText();
+    if (window.MutationObserver && document.body) {
+      new MutationObserver(scheduleLocalize).observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true
+      });
+    }
+    [300, 1200, 3000].forEach(function (delay) {
+      window.setTimeout(localizeFrameworkText, delay);
+    });
+  }
+
   // 文件拖到上传区之外时，浏览器默认会直接打开该文件，页面会跳走。
   // 这里只拦文件类拖拽，且只 preventDefault、不阻断冒泡，上传区自身的逻辑不受影响。
   function guardFileDrop(event) {
@@ -40,7 +93,23 @@ _HEAD_TEMPLATE = """<script>
   }
   document.addEventListener('dragover', guardFileDrop, true);
   document.addEventListener('drop', guardFileDrop, true);
+
+  window.__sdpSetLocale = function (locale) {
+    currentLocale = locale;
+    document.documentElement.lang = locale;
+    if (TITLES[locale]) {
+      document.title = TITLES[locale];
+    }
+    applyTabLabels(locale);
+    scheduleLocalize();
+  };
+
   window.__sdpSetLocale(__DEFAULT_LOCALE__);
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", startFrameworkObserver);
+  } else {
+    startFrameworkObserver();
+  }
 })();
 </script>"""
 
