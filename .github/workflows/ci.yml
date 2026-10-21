@@ -1,22 +1,57 @@
 name: CI
 
 on:
-  push:
-    branches: [main, dev]
   pull_request:
     branches: [main, dev]
+  push:
+    branches: [main, dev]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  GRADIO_ANALYTICS_ENABLED: "False"
 
 jobs:
-  ci:
-    name: ci
-    runs-on: ubuntu-latest
+  lint:
+    name: lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install lint tools
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install ruff
+
+      - name: Ruff syntax-level checks
+        run: |
+          set -euo pipefail
+          ruff check --select E9,F63,F7,F82 .
+
+      - name: Byte-compile all modules
+        run: |
+          set -euo pipefail
+          python -m compileall -q .
+
+  test:
+    name: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,16 +64,65 @@ jobs:
 
       - name: Install dependencies
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install ruff
+          pip install -r requirements-dev.txt
+          pip install maturin
 
-      - name: Lint (syntax-level rules)
-        run: ruff check --select E9,F63,F7,F82 .
-
-      - name: Byte-compile all modules
-        run: python -m compileall -q .
-
-      - name: Import smoke test
+      - name: Build Rust core
         run: |
-          python -c "import config, logging_config, prompt_converter, image_processor, metadata_extractor, gradio_interface"
+          set -euo pipefail
+          pip install .
+          python -c "import sdprompt_core; print('core', sdprompt_core.core_version())"
+
+      - name: Run tests
+        run: |
+          set -euo pipefail
+          python -m pytest -q
+
+  build:
+    name: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install build tools
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install maturin
+
+      - name: Build wheel
+        run: |
+          set -euo pipefail
+          maturin build --release --locked
+          ls -l target/wheels
+
+      - name: Import smoke test from wheel
+        run: |
+          set -euo pipefail
+          pip install --force-reinstall --no-deps target/wheels/*.whl
+          python -c "import sdprompt_core; print('wheel ok', sdprompt_core.core_version())"
+
+  ci:
+    name: ci
+    if: always()
+    needs: [lint, test, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require all jobs
+        run: |
+          set -euo pipefail
+          test "${{ needs.lint.result }}" = "success"
+          test "${{ needs.test.result }}" = "success"
+          test "${{ needs.build.result }}" = "success"
