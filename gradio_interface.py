@@ -100,6 +100,31 @@ _HEAD_TEMPLATE = """<script>
   document.addEventListener('dragover', guardFileDrop, true);
   document.addEventListener('drop', guardFileDrop, true);
 
+  // 组件自己的拖放区只有按钮那么大；拖到左列空白处时，手动把文件塞给它的 input。
+  function forwardDropToUploader(event) {
+    var target = event.target;
+    var zone = target && target.closest ? target.closest('.sdp-dropzone') : null;
+    if (!zone) {
+      return;
+    }
+    if (target.closest('.sdp-dropzone button')) {
+      return;
+    }
+    var input = zone.querySelector('input[type="file"]');
+    var files = event.dataTransfer && event.dataTransfer.files;
+    if (!input || !files || !files.length) {
+      return;
+    }
+    event.preventDefault();
+    var transfer = new DataTransfer();
+    for (var i = 0; i < files.length; i += 1) {
+      transfer.items.add(files[i]);
+    }
+    input.files = transfer.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  document.addEventListener('drop', forwardDropToUploader, false);
+
 
   window.__sdpSetLocale = function (locale) {
     currentLocale = locale;
@@ -123,9 +148,12 @@ _HEAD_TEMPLATE = """<script>
 # 空状态的上传按钮默认只有内容高度，拖放热区比容器小很多；这里把它撑满。
 _UPLOAD_CSS = """
 .sdp-upload,
+.sdp-upload .upload-container,
 .sdp-upload .image-container {
     min-height: 440px;
+    height: 100%;
 }
+.sdp-upload .upload-container > button,
 .sdp-upload .image-container > button {
     min-height: 440px;
     width: 100%;
@@ -271,7 +299,7 @@ class GradioInterface:
         with gr.Tab(i18n.t("tabs.metadata")) as metadata_tab:
             self._bind(metadata_tab, ("label", "tabs.metadata"))
             with gr.Row():
-                with gr.Column(scale=1):
+                with gr.Column(scale=1, elem_classes=["sdp-dropzone"]):
                     img_input = gr.Image(
                         label=i18n.t("metadata.upload_label"),
                         height=500,
