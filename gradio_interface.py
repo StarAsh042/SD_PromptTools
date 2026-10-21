@@ -1,4 +1,5 @@
 import json
+import os
 
 import gradio as gr
 
@@ -316,8 +317,9 @@ class GradioInterface:
         """
         启动Gradio界面
         """
+        port = int(os.environ.get("SDPROMPT_PORT", Config.DEFAULT_PORT))
         self.demo.launch(
-            server_port=Config.DEFAULT_PORT,
+            server_port=port,
             server_name="127.0.0.1",
             show_error=True,
             share=False,

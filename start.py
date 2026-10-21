@@ -5,9 +5,13 @@
 """
 import argparse
 import importlib.util
+import os
+import socket
 import subprocess
 import sys
 from pathlib import Path
+
+from config import Config
 
 ROOT = Path(__file__).resolve().parent
 MIN_PYTHON = (3, 10)
@@ -19,6 +23,20 @@ def log(message: str = "") -> None:
     """带 flush 的输出：管道里也能保证"先提示、再装包"的顺序。"""
     sys.stdout.write(str(message) + chr(10))
     sys.stdout.flush()
+
+
+def find_free_port(preferred: int, attempts: int = 20) -> int:
+    """从 preferred 开始找一个能绑定的端口；全被占就报错退出。"""
+    for port in range(preferred, preferred + attempts):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            try:
+                sock.bind(("127.0.0.1", port))
+            except OSError:
+                continue
+            return port
+    raise SystemExit(
+        f"端口 {preferred}-{preferred + attempts - 1} 全部被占用，请先关掉占用这些端口的程序。"
+    )
 
 
 def python_ok() -> bool:
@@ -117,8 +135,14 @@ def main(argv=None) -> int:
         log("环境就绪（未启动界面）")
         return 0
 
-    log("[启动] 正在打开界面，稍后浏览器会自动弹出；关闭本窗口即停止服务")
-    return subprocess.call([sys.executable, str(ROOT / "main.py")], cwd=str(ROOT))
+    port = find_free_port(Config.DEFAULT_PORT)
+    if port != Config.DEFAULT_PORT:
+        log(f"[提示] 端口 {Config.DEFAULT_PORT} 已被占用，改用 {port} 启动")
+        log("       如果占着旧端口的是上一次没关掉的窗口，建议先关掉它，避免两份程序同时运行")
+
+    log(f"[启动] 正在打开界面（http://127.0.0.1:{port}），关闭本窗口即停止服务")
+    env = {**os.environ, "SDPROMPT_PORT": str(port)}
+    return subprocess.call([sys.executable, str(ROOT / "main.py")], cwd=str(ROOT), env=env)
 
 
 if __name__ == "__main__":
