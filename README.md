@@ -54,6 +54,28 @@
 - **i18n.py + locales/**  
   极简国际化：`zh-CN.json` / `en-US.json` 两个 catalog，缺 key 回退默认语言并记录。
 
+## 快速开始（Windows）
+
+双击仓库里的 `start.bat`，或在命令行运行：
+
+```bat
+start.bat
+```
+
+它会依次检查 Python 版本、运行依赖、Rust 扩展三项，缺什么补什么，然后启动并在浏览器里打开界面。
+
+只想检查环境、不安装也不启动：
+
+```bat
+python start.py --check
+```
+
+Linux / macOS 没有 `.bat`，直接用：
+
+```bash
+python start.py
+```
+
 ## 安装
 
 1. **克隆仓库**
