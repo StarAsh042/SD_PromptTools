@@ -75,9 +75,84 @@ fn round_half_up(n: f64, decimals: u32) -> f64 {
     round_half_up_value(n, decimals as usize)
 }
 
+/// 逐字符解析 `{}` / `[]` 嵌套，产出 `(tag, weight)` 序列。
+///
+/// 权重 = 正因子^花括号层数 × 负因子^方括号层数，负因子取正因子的倒数。
+/// 闭合括号时先按「尚未减一」的层数结算当前 tag，再减层；层数为 0 的闭合括号
+/// 不是语法，会被当作普通字符留在 tag 里（与 Python 实现一致）。
+#[pyfunction]
+#[pyo3(signature = (text, pos = 0, outer_curly = 0, outer_square = 0, positive_factor = 1.05, precision = 3))]
+fn parse_brackets(
+    text: &str,
+    pos: usize,
+    outer_curly: i32,
+    outer_square: i32,
+    positive_factor: f64,
+    precision: u32,
+) -> (Vec<(String, f64)>, usize) {
+    let chars: Vec<char> = text.chars().collect();
+    let negative_factor = 1.0 / positive_factor;
+    let mut result: Vec<(String, f64)> = Vec::new();
+    let mut current = String::new();
+    let mut curly = outer_curly;
+    let mut square = outer_square;
+    let mut i = pos;  // 与 Python 一致：pos 超出长度时原样返回
+
+    let weight_at = |curly: i32, square: i32| -> f64 {
+        let positive = positive_factor.powf(f64::from(curly - outer_curly));
+        let negative = negative_factor.powf(f64::from(square - outer_square));
+        round_half_up_value(positive * negative, precision as usize)
+    };
+
+    while i < chars.len() {
+        let c = chars[i];
+        match c {
+            '{' => curly += 1,
+            '[' => square += 1,
+            '}' if curly > outer_curly => {
+                if !current.is_empty() {
+                    result.push((current.trim().to_string(), weight_at(curly, square)));
+                    current.clear();
+                }
+                curly -= 1;
+            }
+            ']' if square > outer_square => {
+                if !current.is_empty() {
+                    result.push((current.trim().to_string(), weight_at(curly, square)));
+                    current.clear();
+                }
+                square -= 1;
+            }
+            ',' => {
+                if !current.is_empty() {
+                    if curly > outer_curly || square > outer_square {
+                        result.push((current.trim().to_string(), weight_at(curly, square)));
+                    } else {
+                        result.push((current.trim().to_string(), 1.0));
+                    }
+                    current.clear();
+                }
+            }
+            _ => current.push(c),
+        }
+        i += 1;
+    }
+
+    if !current.is_empty() {
+        if curly > outer_curly || square > outer_square {
+            result.push((current.trim().to_string(), weight_at(curly, square)));
+        } else {
+            result.push((current.trim().to_string(), 1.0));
+        }
+    }
+
+    (result, i)
+}
+
 #[pymodule]
 fn sdprompt_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(core_version, m)?)?;
     m.add_function(wrap_pyfunction!(round_half_up, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_brackets, m)?)?;
     Ok(())
 }
