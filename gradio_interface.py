@@ -113,6 +113,18 @@ _HEAD_TEMPLATE = """<script>
 })();
 </script>"""
 
+# 空状态的上传按钮默认只有内容高度，拖放热区比容器小很多；这里把它撑满。
+_UPLOAD_CSS = """
+.sdp-upload,
+.sdp-upload .image-container {
+    min-height: 440px;
+}
+.sdp-upload .image-container > button {
+    min-height: 440px;
+    width: 100%;
+}
+"""
+
 
 class GradioInterface:
     def __init__(self):
@@ -257,7 +269,8 @@ class GradioInterface:
                         label=i18n.t("metadata.upload_label"),
                         height=500,
                         sources=["upload"],
-                        type="filepath"
+                        type="filepath",
+                        elem_classes=["sdp-upload"],
                     )
                     self._bind(img_input, ("label", "metadata.upload_label"))
                 with gr.Column(scale=1):
@@ -274,7 +287,7 @@ class GradioInterface:
         """
         创建Gradio整体界面
         """
-        with gr.Blocks(title=i18n.t("app.title"), head=self._head()) as demo:
+        with gr.Blocks(title=i18n.t("app.title"), head=self._head(), css=_UPLOAD_CSS) as demo:
             language = gr.Dropdown(
                 choices=list(i18n.available_locales()),
                 value=i18n.get_locale(),
