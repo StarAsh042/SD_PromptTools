@@ -171,3 +171,23 @@ class PromptConverter:
                 result.append((current_tag.strip(), 1.0))
         return result, pos
 
+    @staticmethod
+    def add_artist_prefix(tag: str) -> str:
+        """
+        根据 CSV 表中加载的 artist trigger 判断 tag 是否需要添加 "artist:" 前缀。
+        如果 tag（不包含前缀）正好出现在 PromptConverter.artist_triggers 集合中，
+        则返回 "artist:" + tag，否则返回原 tag。
+        """
+        # 如果还没有加载，则加载 artist trigger 集合
+        if not PromptConverter.artist_triggers:
+            PromptConverter.load_artist_triggers()
+        # 统一比较均转换成小写
+        tag_lower = tag.lower()
+        # 如果 tag 已经包含前缀，则直接返回
+        if tag_lower.startswith("artist:"):
+            return tag
+        # 将 artist_triggers 集合转换为小写进行比较
+        triggers_lower = {trigger.lower() for trigger in PromptConverter.artist_triggers}
+        if tag_lower in triggers_lower:
+            return "artist:" + tag
+        return tag 
