@@ -1,0 +1,17 @@
+[build-system]
+requires = ["maturin>=1.5,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "sdprompt-tools"
+version = "2.0.0"
+description = "SD 提示词工具集：NAI / SD 双向转换与图片元数据探测"
+requires-python = ">=3.10"
+dependencies = [
+    "gradio>=3.0",
+    "Pillow>=8.0",
+    "numpy>=1.19.0",
+]
+
+[tool.maturin]
+module-name = "sdprompt_core"
