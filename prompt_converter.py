@@ -1,3 +1,4 @@
+import re
 from config import Config
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -40,6 +41,26 @@ def escape_inner_parentheses(text: str) -> str:
             result.append(text[i])
             i += 1
     return ''.join(result)
+
+def clean_output(text: str) -> str:
+    """
+    清理转换结果中的多余标点和空格：
+    1. 将句号（。）和顿号（、）转换为逗号；
+    2. 删除连续多余的逗号，合并为一个；
+    3. 删除逗号前后多余的空格。
+    """
+    # 替换中文标点为英文逗号
+    text = text.replace('。', ',').replace('、', ',')
+    # 删除逗号前后多余的空格，并用单个逗号连接
+    text = re.sub(r'\s*,\s*', ',', text)
+    # 将连续逗号替换为单个逗号
+    text = re.sub(r',+', ',', text)
+    # 去除首尾多余的逗号
+    return text.strip(',')
+
+class PromptConverter:
+    # 新增类属性，用于存储 CSV 表中加载的艺术家 tag（来自 danbooru_art.csv）
+    artist_triggers = set()
 
 class PromptConverter:
     @staticmethod
