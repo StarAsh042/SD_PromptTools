@@ -1,0 +1,23 @@
+{
+  "app.title": "SD 提示词工具集",
+  "app.heading": "# 🚀 SD 提示词工具集",
+  "app.footer": "由 [StarAsh042](https://github.com/StarAsh042) 构建 · Gradio {version}",
+  "settings.language": "界面语言",
+
+  "tabs.converter": "提示词格式转换器",
+  "tabs.metadata": "元数据探测器",
+
+  "converter.heading": "## 🔄 双向格式转换引擎",
+  "converter.nai_label": "NAI 格式",
+  "converter.nai_placeholder": "输入 NAI 格式的提示词...",
+  "converter.nai_to_sd": "转换为 SD 格式 →",
+  "converter.sd_label": "SD 格式",
+  "converter.sd_placeholder": "输入 SD 格式的提示词...",
+  "converter.sd_to_nai": "← 转换为 NAI 格式",
+
+  "metadata.upload_label": "上传图片",
+  "metadata.output_label": "元数据",
+
+  "common.copy": "📋 复制",
+  "common.reset": "🔄 重置"
+}
