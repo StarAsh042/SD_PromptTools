@@ -187,6 +187,41 @@ class PromptConverter:
         return result, pos
 
     @staticmethod
+    @handle_escape
+    def nai_to_sd(prompt: str) -> str:
+        """
+        将 NAI 格式转换为 SD 格式。
+        修改内容：
+          1. 临时将 "artist:" 替换为 "artist_"，避免解析时冲突；
+          2. 遍历解析出的 tag 时，先调用 add_artist_prefix 判断是否需要添加前缀，
+             再调用 escape_inner_parentheses 对 tag 内部括号进行处理，并使用 round_half_up 保留 3 位小数；
+          3. 最后恢复 "artist:" 标记，并对最终结果进行清理（替换中文标点、删除多余逗号和空格）。
+        """
+        if not isinstance(prompt, str):
+            return ""
+        try:
+            # 临时替换 "artist:" 避免在解析时冲突
+            prompt = prompt.replace("artist:", "artist_")
+            tags, _ = PromptConverter.parse_and_count_brackets(prompt)
+            result_tags = []
+            for tag, weight in tags:
+                # 恢复 artist: 标记后再处理
+                tag = tag.replace("artist_", "artist:")
+                # 判断是否为艺术家 tag，不含前缀但存在于 CSV 表中则添加前缀
+                tag = PromptConverter.add_artist_prefix(tag)
+                if abs(weight - 1.0) < 0.001:
+                    result_tags.append(tag)
+                else:
+                    # 对 tag 内部括号进行转义处理
+                    escaped_tag = escape_inner_parentheses(tag)
+                    result_tags.append(f"({escaped_tag}:{weight:.3f})")
+            result = ", ".join(result_tags)
+            result = clean_output(result)
+            return result
+        except Exception as e:
+            return f"Error: {str(e)}"
+
+    @staticmethod
     def add_artist_prefix(tag: str) -> str:
         """
         根据 CSV 表中加载的 artist trigger 判断 tag 是否需要添加 "artist:" 前缀。
