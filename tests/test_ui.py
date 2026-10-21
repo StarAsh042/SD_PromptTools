@@ -43,6 +43,22 @@ def test_language_dropdown_offers_both_locales():
     assert [choice[1] for choice in dropdowns[0].choices] == list(i18n.available_locales())
 
 
+def test_language_dropdown_is_compact_and_top_left():
+    ui = GradioInterface()
+
+    dropdown = [b for b in ui.demo.blocks.values() if isinstance(b, gr.Dropdown)][0]
+    toolbars = [
+        block for block in ui.demo.blocks.values()
+        if isinstance(block, gr.Row) and "sdp-toolbar" in (block.elem_classes or [])
+    ]
+
+    assert dropdown.elem_classes == ["sdp-lang"]
+    assert dropdown.scale == 0
+    assert dropdown.min_width == 130
+    assert len(toolbars) == 1
+    assert ".sdp-lang" in ui.demo.css and "max-width: 148px" in ui.demo.css
+
+
 def test_switch_language_returns_one_update_per_text():
     ui = GradioInterface()
 
