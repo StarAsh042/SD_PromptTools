@@ -57,10 +57,18 @@ class MetadataExtractor:
     @staticmethod
     def extract_metadata(file_path: str) -> dict:
         """
-        提取图片元数据，支持PNG和JPEG格式
+        提取图片元数据，支持PNG和JPEG格式。
+
+        返回结构里不拼用户可见文案，只给稳定 code，由界面层翻译：
+          - 没有图片（空值）：返回 {}，界面保持空白
+          - 文件不存在：{"error_code": "metadata.file_missing"}
+          - 解析失败：  {"error_code": "metadata.parse_failed", "detail": "..."}
+          - 无提示词：  {"message_code": "metadata.not_found"}
         """
-        if not file_path or not os.path.exists(file_path):
-            return {"error": "文件不存在或无效"}
+        if not file_path:
+            return {}
+        if not os.path.exists(file_path):
+            return {"error_code": "metadata.file_missing"}
         try:
             with Image.open(file_path) as img:
                 metadata = {}
@@ -70,14 +78,14 @@ class MetadataExtractor:
                     metadata.update(MetadataExtractor._parse_jpeg_metadata(img))
                 result = {}
                 if "Parameters" in metadata:
-                    result["Parameters"] = metadata["Parameters"].strip().replace('\x00', '')
+                    result["Parameters"] = metadata["Parameters"].strip().replace(chr(0), '')
                 elif "Prompt" in metadata:
                     result["Prompt"] = metadata["Prompt"]
                 elif "Description" in metadata:
                     result["Description"] = metadata["Description"]
                 if not result:
-                    return {"message": "未找到提示词相关元数据"}
+                    return {"message_code": "metadata.not_found"}
                 return result
         except Exception as e:
             logger.exception("元数据解析错误")
-            return {"error": f"处理失败: {str(e)}"} 
+            return {"error_code": "metadata.parse_failed", "detail": str(e)}

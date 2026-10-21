@@ -230,6 +230,21 @@ class GradioInterface:
                 nai_reset_btn.click(fn=lambda: "", outputs=[nai_input])
                 sd_reset_btn.click(fn=lambda: "", outputs=[sd_input])
 
+    @staticmethod
+    def _localize_metadata_result(result: dict) -> dict:
+        """把解析结果的 code 翻成当前语言；没有图片时返回空对象，不显示报错。"""
+        if "error_code" in result:
+            code = result["error_code"]
+            if "detail" in result:
+                return {"error": i18n.t(code, detail=result["detail"])}
+            return {"error": i18n.t(code)}
+        if "message_code" in result:
+            return {"message": i18n.t(result["message_code"])}
+        return result
+
+    def extract_metadata(self, file_path):
+        return self._localize_metadata_result(MetadataExtractor.extract_metadata(file_path))
+
     def _create_metadata_tab(self):
         """
         创建图片元数据探测器标签页
@@ -250,7 +265,7 @@ class GradioInterface:
                     meta_output = gr.JSON(label=i18n.t("metadata.output_label"))
                     self._bind(meta_output, ("label", "metadata.output_label"))
                     img_input.change(
-                        fn=MetadataExtractor.extract_metadata,
+                        fn=self.extract_metadata,
                         inputs=[img_input],
                         outputs=[meta_output]
                     )

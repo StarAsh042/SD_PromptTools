@@ -1,12 +1,9 @@
 {
-  "app.title": "SD Prompt Tools",
-  "app.heading": "# 🚀 SD Prompt Tools",
   "app.footer": "Built by [StarAsh042](https://github.com/StarAsh042) · Gradio {version}",
-  "settings.language": "Interface language",
-
-  "tabs.converter": "Prompt Format Converter",
-  "tabs.metadata": "Metadata Inspector",
-
+  "app.heading": "# 🚀 SD Prompt Tools",
+  "app.title": "SD Prompt Tools",
+  "common.copy": "📋 Copy",
+  "common.reset": "🔄 Reset",
   "converter.heading": "## 🔄 Two-way Conversion Engine",
   "converter.nai_label": "NAI format",
   "converter.nai_placeholder": "Paste a NovelAI-style prompt...",
@@ -14,10 +11,12 @@
   "converter.sd_label": "SD format",
   "converter.sd_placeholder": "Paste a Stable Diffusion prompt...",
   "converter.sd_to_nai": "← Convert to NAI",
-
-  "metadata.upload_label": "Upload an image",
+  "metadata.file_missing": "The file is missing or invalid.",
+  "metadata.not_found": "No prompt metadata found.",
   "metadata.output_label": "Metadata",
-
-  "common.copy": "📋 Copy",
-  "common.reset": "🔄 Reset"
+  "metadata.parse_failed": "Processing failed: {detail}",
+  "metadata.upload_label": "Upload an image",
+  "settings.language": "Interface language",
+  "tabs.converter": "Prompt Format Converter",
+  "tabs.metadata": "Metadata Inspector"
 }
