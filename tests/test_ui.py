@@ -10,6 +10,7 @@ import gradio as gr
 import pytest
 
 import i18n
+from config import Config
 from gradio_interface import GradioInterface
 
 
@@ -106,6 +107,20 @@ def test_head_sets_html_lang_and_bilingual_titles():
     assert "document.documentElement.lang" in head
     assert "SD Prompt Tools" in head
     assert "SD 提示词工具集" in head
+
+
+def test_launch_reads_port_from_env(monkeypatch):
+    ui = GradioInterface()
+    captured = {}
+    monkeypatch.setattr(ui.demo, "launch", lambda **kwargs: captured.update(kwargs))
+
+    monkeypatch.setenv("SDPROMPT_PORT", "8123")
+    ui.launch()
+    assert captured["server_port"] == 8123
+
+    monkeypatch.delenv("SDPROMPT_PORT")
+    ui.launch()
+    assert captured["server_port"] == Config.DEFAULT_PORT
 
 
 CJK = re.compile(r"[一-鿿]")
