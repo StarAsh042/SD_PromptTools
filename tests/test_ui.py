@@ -65,6 +65,16 @@ def test_switch_language_updates_placeholders():
     assert "Paste a Stable Diffusion prompt..." in placeholders
 
 
+def test_head_guards_file_drops():
+    ui = GradioInterface()
+
+    head = ui.demo.get_config_file()["head"]
+
+    assert "guardFileDrop" in head
+    assert "dragover" in head
+    assert "'Files'" in head
+
+
 def test_head_sets_html_lang_and_bilingual_titles():
     ui = GradioInterface()
 

@@ -16,6 +16,16 @@ _HEAD_TEMPLATE = """<script>
       document.title = TITLES[locale];
     }
   };
+  // 文件拖到上传区之外时，浏览器默认会直接打开该文件，页面会跳走。
+  // 这里只拦文件类拖拽，且只 preventDefault、不阻断冒泡，上传区自身的逻辑不受影响。
+  function guardFileDrop(event) {
+    var types = event.dataTransfer && event.dataTransfer.types;
+    if (types && Array.prototype.indexOf.call(types, 'Files') !== -1) {
+      event.preventDefault();
+    }
+  }
+  document.addEventListener('dragover', guardFileDrop, true);
+  document.addEventListener('drop', guardFileDrop, true);
   window.__sdpSetLocale(__DEFAULT_LOCALE__);
 })();
 </script>"""
