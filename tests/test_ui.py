@@ -127,6 +127,17 @@ def test_english_interface_has_no_untranslated_chinese():
     assert offenders == []
 
 
+def test_metadata_messages_follow_locale():
+    ui = GradioInterface()
+
+    assert ui.extract_metadata(None) == {}
+    assert ui.extract_metadata("definitely-missing.png") == {"error": "文件不存在或无效"}
+
+    ui.switch_language("en-US")
+
+    assert ui.extract_metadata("definitely-missing.png") == {"error": "The file is missing or invalid."}
+
+
 def test_switching_back_restores_chinese():
     ui = GradioInterface()
     ui.switch_language("en-US")
