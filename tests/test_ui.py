@@ -75,6 +75,16 @@ def test_head_guards_file_drops():
     assert "'Files'" in head
 
 
+def test_head_contains_tab_labels_for_both_locales():
+    ui = GradioInterface()
+
+    head = ui.demo.get_config_file()["head"]
+
+    assert "Prompt Format Converter" in head
+    assert "Metadata Inspector" in head
+    assert "提示词格式转换器" in head
+
+
 def test_head_sets_html_lang_and_bilingual_titles():
     ui = GradioInterface()
 

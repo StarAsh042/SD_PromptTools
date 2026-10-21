@@ -10,11 +10,25 @@ from metadata_extractor import MetadataExtractor
 _HEAD_TEMPLATE = """<script>
 (function () {
   var TITLES = __TITLES__;
+  var TAB_LABELS = __TAB_LABELS__;
+  // gr.Tab 是布局块，没有 update() 方法，后端发的 label 更新前端不一定应用；
+  // 这里按顺序把标签页按钮的文字直接改掉，作为兜底。
+  function applyTabLabels(locale) {
+    var labels = TAB_LABELS[locale];
+    if (!labels) {
+      return;
+    }
+    var buttons = document.querySelectorAll('[role="tab"]');
+    for (var i = 0; i < buttons.length && i < labels.length; i += 1) {
+      buttons[i].textContent = labels[i];
+    }
+  }
   window.__sdpSetLocale = function (locale) {
     document.documentElement.lang = locale;
     if (TITLES[locale]) {
       document.title = TITLES[locale];
     }
+    applyTabLabels(locale);
   };
   // 文件拖到上传区之外时，浏览器默认会直接打开该文件，页面会跳走。
   // 这里只拦文件类拖拽，且只 preventDefault、不阻断冒泡，上传区自身的逻辑不受影响。
@@ -57,9 +71,14 @@ class GradioInterface:
     def _head() -> str:
         catalogs = i18n.load_catalogs()
         titles = {locale: catalogs[locale]["app.title"] for locale in i18n.available_locales()}
+        tab_labels = {
+            locale: [catalogs[locale]["tabs.converter"], catalogs[locale]["tabs.metadata"]]
+            for locale in i18n.available_locales()
+        }
         return (
             _HEAD_TEMPLATE
             .replace("__TITLES__", json.dumps(titles, ensure_ascii=False))
+            .replace("__TAB_LABELS__", json.dumps(tab_labels, ensure_ascii=False))
             .replace("__DEFAULT_LOCALE__", json.dumps(i18n.get_locale()))
         )
 
