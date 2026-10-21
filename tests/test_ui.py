@@ -153,6 +153,13 @@ def test_metadata_messages_follow_locale():
     assert ui.extract_metadata("definitely-missing.png") == {"error": "The file is missing or invalid."}
 
 
+def test_head_localizes_footer_text():
+    head = GradioInterface().demo.get_config_file()["head"]
+
+    assert "Use via API" in head
+    assert "Built with Gradio" in head
+
+
 def test_upload_area_gets_class_and_css():
     ui = GradioInterface()
 
