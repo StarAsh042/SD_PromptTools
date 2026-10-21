@@ -1,3 +1,5 @@
+import json
+
 import gradio as gr
 
 import i18n
@@ -5,21 +7,35 @@ from config import Config
 from prompt_converter import PromptConverter
 from metadata_extractor import MetadataExtractor
 
+_HEAD_TEMPLATE = """<script>
+(function () {
+  var TITLES = __TITLES__;
+  window.__sdpSetLocale = function (locale) {
+    document.documentElement.lang = locale;
+    if (TITLES[locale]) {
+      document.title = TITLES[locale];
+    }
+  };
+  window.__sdpSetLocale(__DEFAULT_LOCALE__);
+})();
+</script>"""
+
 
 class GradioInterface:
     def __init__(self):
-        # (组件, 文案 key, 更新哪个属性, 占位符变量)
+        # (组件, [(属性, 文案 key), ...], 占位符变量)
         self._i18n_targets = []
         self.demo = self._create_interface()
 
-    def _bind(self, component, key, attr="label", **variables):
-        self._i18n_targets.append((component, key, attr, variables))
+    def _bind(self, component, *specs, **variables):
+        """specs 是 (属性, key) 的若干对；同一组件可同时绑定 label 与 placeholder。"""
+        self._i18n_targets.append((component, specs, variables))
         return component
 
     def _translated_updates(self):
         updates = []
-        for _component, key, attr, variables in self._i18n_targets:
-            updates.append(gr.update(**{attr: i18n.t(key, **variables)}))
+        for _component, specs, variables in self._i18n_targets:
+            updates.append(gr.update(**{attr: i18n.t(key, **variables) for attr, key in specs}))
         return updates
 
     def switch_language(self, locale: str):
@@ -27,13 +43,23 @@ class GradioInterface:
         i18n.set_locale(locale)
         return self._translated_updates()
 
+    @staticmethod
+    def _head() -> str:
+        catalogs = i18n.load_catalogs()
+        titles = {locale: catalogs[locale]["app.title"] for locale in i18n.available_locales()}
+        return (
+            _HEAD_TEMPLATE
+            .replace("__TITLES__", json.dumps(titles, ensure_ascii=False))
+            .replace("__DEFAULT_LOCALE__", json.dumps(i18n.get_locale()))
+        )
+
     def _create_converter_tab(self):
         """
         创建提示词格式转换器标签页
         """
         with gr.Tab(i18n.t("tabs.converter")) as converter_tab:
-            self._bind(converter_tab, "tabs.converter")
-            self._bind(gr.Markdown(i18n.t("converter.heading")), "converter.heading", "value")
+            self._bind(converter_tab, ("label", "tabs.converter"))
+            self._bind(gr.Markdown(i18n.t("converter.heading")), ("value", "converter.heading"))
             with gr.Row():
                 # NAI格式输入区域
                 with gr.Column():
@@ -42,14 +68,18 @@ class GradioInterface:
                         placeholder=i18n.t("converter.nai_placeholder"),
                         lines=8
                     )
-                    self._bind(nai_input, "converter.nai_label")
+                    self._bind(
+                        nai_input,
+                        ("label", "converter.nai_label"),
+                        ("placeholder", "converter.nai_placeholder"),
+                    )
                     with gr.Row():
                         nai_to_sd_btn = self._bind(
-                            gr.Button(i18n.t("converter.nai_to_sd")), "converter.nai_to_sd", "value")
+                            gr.Button(i18n.t("converter.nai_to_sd")), ("value", "converter.nai_to_sd"))
                         nai_copy_btn = self._bind(
-                            gr.Button(i18n.t("common.copy")), "common.copy", "value")
+                            gr.Button(i18n.t("common.copy")), ("value", "common.copy"))
                         nai_reset_btn = self._bind(
-                            gr.Button(i18n.t("common.reset")), "common.reset", "value")
+                            gr.Button(i18n.t("common.reset")), ("value", "common.reset"))
                 # SD格式输入区域
                 with gr.Column():
                     sd_input = gr.Textbox(
@@ -57,14 +87,18 @@ class GradioInterface:
                         placeholder=i18n.t("converter.sd_placeholder"),
                         lines=8
                     )
-                    self._bind(sd_input, "converter.sd_label")
+                    self._bind(
+                        sd_input,
+                        ("label", "converter.sd_label"),
+                        ("placeholder", "converter.sd_placeholder"),
+                    )
                     with gr.Row():
                         sd_to_nai_btn = self._bind(
-                            gr.Button(i18n.t("converter.sd_to_nai")), "converter.sd_to_nai", "value")
+                            gr.Button(i18n.t("converter.sd_to_nai")), ("value", "converter.sd_to_nai"))
                         sd_copy_btn = self._bind(
-                            gr.Button(i18n.t("common.copy")), "common.copy", "value")
+                            gr.Button(i18n.t("common.copy")), ("value", "common.copy"))
                         sd_reset_btn = self._bind(
-                            gr.Button(i18n.t("common.reset")), "common.reset", "value")
+                            gr.Button(i18n.t("common.reset")), ("value", "common.reset"))
 
                 # 绑定转换按钮事件
                 nai_to_sd_btn.click(
@@ -103,7 +137,7 @@ class GradioInterface:
         创建图片元数据探测器标签页
         """
         with gr.Tab(i18n.t("tabs.metadata")) as metadata_tab:
-            self._bind(metadata_tab, "tabs.metadata")
+            self._bind(metadata_tab, ("label", "tabs.metadata"))
             with gr.Row():
                 with gr.Column(scale=1):
                     img_input = gr.Image(
@@ -112,11 +146,11 @@ class GradioInterface:
                         sources=["upload"],
                         type="filepath"
                     )
-                    self._bind(img_input, "metadata.upload_label")
+                    self._bind(img_input, ("label", "metadata.upload_label"))
                 with gr.Column(scale=1):
                     # gr.JSON 不支持 height 参数（gradio 4.x 起），传了会在实例化时抛 TypeError
                     meta_output = gr.JSON(label=i18n.t("metadata.output_label"))
-                    self._bind(meta_output, "metadata.output_label")
+                    self._bind(meta_output, ("label", "metadata.output_label"))
                     img_input.change(
                         fn=MetadataExtractor.extract_metadata,
                         inputs=[img_input],
@@ -127,27 +161,28 @@ class GradioInterface:
         """
         创建Gradio整体界面
         """
-        with gr.Blocks(title=i18n.t("app.title")) as demo:
+        with gr.Blocks(title=i18n.t("app.title"), head=self._head()) as demo:
             language = gr.Dropdown(
                 choices=list(i18n.available_locales()),
                 value=i18n.get_locale(),
                 label=i18n.t("settings.language"),
                 interactive=True,
             )
-            self._bind(language, "settings.language")
-            self._bind(gr.Markdown(i18n.t("app.heading")), "app.heading", "value")
+            self._bind(language, ("label", "settings.language"))
+            self._bind(gr.Markdown(i18n.t("app.heading")), ("value", "app.heading"))
             with gr.Tabs():
                 self._create_converter_tab()
                 self._create_metadata_tab()
             footer = gr.Markdown(
                 i18n.t("app.footer", version=gr.__version__)
             )
-            self._bind(footer, "app.footer", "value", version=gr.__version__)
+            self._bind(footer, ("value", "app.footer"), version=gr.__version__)
 
             language.change(
                 fn=self.switch_language,
                 inputs=[language],
                 outputs=[target[0] for target in self._i18n_targets],
+                js="(locale) => { window.__sdpSetLocale(locale); return locale; }",
             )
         return demo
 

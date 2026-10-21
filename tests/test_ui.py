@@ -55,6 +55,26 @@ def test_switch_language_returns_one_update_per_text():
     assert "Built by" in "".join(str(v) for v in values if v)
 
 
+def test_switch_language_updates_placeholders():
+    ui = GradioInterface()
+
+    updates = ui.switch_language("en-US")
+
+    placeholders = [u["placeholder"] for u in updates if "placeholder" in u]
+    assert "Paste a NovelAI-style prompt..." in placeholders
+    assert "Paste a Stable Diffusion prompt..." in placeholders
+
+
+def test_head_sets_html_lang_and_bilingual_titles():
+    ui = GradioInterface()
+
+    head = ui.demo.get_config_file()["head"]
+
+    assert "document.documentElement.lang" in head
+    assert "SD Prompt Tools" in head
+    assert "SD 提示词工具集" in head
+
+
 def test_switching_back_restores_chinese():
     ui = GradioInterface()
     ui.switch_language("en-US")
