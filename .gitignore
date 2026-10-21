@@ -1,0 +1,17 @@
+# Python 缓存与测试产物
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+.venv/
+venv/
+
+# 运行产物
+app.log
+app.log.*
+
+# Rust / maturin 构建产物
+target/
+*.pyd
+*.so
+*.dylib
