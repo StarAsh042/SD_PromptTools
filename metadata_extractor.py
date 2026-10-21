@@ -1,4 +1,5 @@
 import struct
+import re
 import os
 from PIL import Image
 from logging_config import setup_logging
@@ -65,6 +66,8 @@ class MetadataExtractor:
                 metadata = {}
                 if img.format == 'PNG':
                     metadata.update(MetadataExtractor._parse_png_metadata(file_path))
+                elif img.format in ['JPEG', 'WEBP']:
+                    metadata.update(MetadataExtractor._parse_jpeg_metadata(img))
                 result = {}
                 if "Parameters" in metadata:
                     result["Parameters"] = metadata["Parameters"].strip().replace('\x00', '')
