@@ -10,6 +10,37 @@ def round_half_up(n: float, decimals: int = 3) -> float:
     quant = Decimal(f'1.{"0"*decimals}')
     return float(Decimal(n).quantize(quant, rounding=ROUND_HALF_UP))
 
+def escape_inner_parentheses(text: str) -> str:
+    """
+    转义文本中的内部括号：
+    - 对未被转义的 "("，如果前面没有下划线，则在其前插入下划线后再添加反斜杠；
+    - 如果 "(" 前已有下划线，则仅在前面加反斜杠；
+    - 对未被转义的 ")" 添加反斜杠。
+    例如："mamimi(mamamimi)" 会转换为 "mamimi_\(mamamimi\)"
+    """
+    result = []
+    i = 0
+    while i < len(text):
+        if text[i] == '(':
+            if i > 0 and text[i-1] not in ['\\', '_']:
+                result.append('_\\(')
+            elif i > 0 and text[i-1] == '_':
+                result.append('\\(')
+            else:
+                result.append('\\(')
+            i += 1
+        elif text[i] == ')':
+            # 如果未被转义，则添加反斜杠
+            if i == 0 or text[i-1] != '\\':
+                result.append('\\)')
+            else:
+                result.append(')')
+            i += 1
+        else:
+            result.append(text[i])
+            i += 1
+    return ''.join(result)
+
 class PromptConverter:
     @staticmethod
     def parse_and_count_brackets(text: str, pos: int = 0, outer_curly: int = 0, outer_square: int = 0) -> tuple[list, int]:
