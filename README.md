@@ -23,6 +23,7 @@
 - **友好的前端界面**  
   - 使用 Gradio 构建，提供"提示词格式转换器"与"元数据探测器"两个标签页。
   - 提供复制、重置等便捷按钮，方便用户日常使用。
+  - 界面支持中文 / English 实时切换，文案放在 `locales/` 下，缺翻译会回退中文并在日志里留痕。
 
 ## 项目结构
 
@@ -47,6 +48,12 @@
 - **image_processor.py**  
   图片处理相关功能，包括图片验证和临时图片保存。
 
+- **src/lib.rs**（Rust 核心）  
+  括号解析、权重计算、half-up 取整、括号转义与输出清理；编译成 `sdprompt_core` 扩展模块供 Python 调用。
+
+- **i18n.py + locales/**  
+  极简国际化：`zh-CN.json` / `en-US.json` 两个 catalog，缺 key 回退默认语言并记录。
+
 ## 安装
 
 1. **克隆仓库**
@@ -56,11 +63,23 @@
    cd your-repository
    ```
 
-2. **安装依赖**
+2. **准备 Rust 工具链**（核心运算由 Rust 提供，必须先能编译）
+
+   ```bash
+   rustup toolchain install 1.99.0   # 版本写在 rust-toolchain.toml
+   ```
+
+   Windows 还需要 MSVC 生成工具；Linux / macOS 需要 C 编译器。
+
+3. **安装依赖并编译扩展**
 
    ```bash
    pip install -r requirements.txt
+   pip install .
    ```
+
+   开发时也可以用 `pip install maturin && maturin develop --release`，
+   改完 Rust 代码后重新执行一次即可生效。
 
 ## 使用
 
@@ -82,8 +101,18 @@
    ```
    程序会启动一个 Gradio 界面服务，并自动在浏览器中打开显示界面。
 
-4. **手动访问（如未自动打开）**  
+4. **切换界面语言**  
+   页面顶部的"界面语言"下拉框可选 `zh-CN` / `en-US`，切换只改文案，不会清空已输入的提示词。
+
+5. **手动访问（如未自动打开）**  
    如果浏览器未自动打开，请手动在浏览器地址栏中输入：[http://127.0.0.1:8080](http://127.0.0.1:8080) 进行访问。
+
+6. **跑测试**
+
+   ```bash
+   pip install -r requirements-dev.txt
+   python -m pytest -q
+   ```
 
 
 
@@ -106,7 +135,17 @@
 提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/)：
 `feat(converter): ...`、`fix(ui): ...`、`docs: ...`。
 
-所有 PR 必须通过 `ci` 检查（ruff 语法级检查 + 字节码编译 + 模块导入冒烟）。
+所有 PR 必须通过 `ci` 检查（ruff、字节码编译、Rust 扩展构建、pytest）。
+
+改 Rust 核心时请保留 `tests/reference_impl.py` 的等价性测试：
+
+```bash
+maturin develop --release
+python -m pytest tests/test_core_equivalence.py -q
+```
+
+加界面文案时，`locales/zh-CN.json` 与 `locales/en-US.json` 必须同时加同一个 key，
+`tests/test_i18n.py` 会检查 key 与占位符是否对齐。
 
 ## 许可
 [MIT License](LICENSE)
