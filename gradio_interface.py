@@ -22,6 +22,11 @@ _HEAD_TEMPLATE = """<script>
     ["将音频拖放到此处", "Drop Audio Here"],
     ["将视频拖放到此处", "Drop Video Here"],
     ["点击上传", "Click to Upload"],
+    ["通过 API 使用", "Use via API"],
+    ["使用 Gradio 构建", "Built with Gradio"],
+    ["构建于", "built with"],
+    ["正在上传...", "Uploading..."],
+    ["提交", "Submit"],
     ["- 或 -", "- or -"],
     ["或", "or"],
     ["清除", "Clear"],
@@ -94,6 +99,7 @@ _HEAD_TEMPLATE = """<script>
   }
   document.addEventListener('dragover', guardFileDrop, true);
   document.addEventListener('drop', guardFileDrop, true);
+
 
   window.__sdpSetLocale = function (locale) {
     currentLocale = locale;
