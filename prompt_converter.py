@@ -1,5 +1,6 @@
 import re
 from config import Config
+from functools import wraps
 from decimal import Decimal, ROUND_HALF_UP
 
 def round_half_up(n: float, decimals: int = 3) -> float:
@@ -10,6 +11,20 @@ def round_half_up(n: float, decimals: int = 3) -> float:
     # 构造格式串 "1.000"（例如3位小数）
     quant = Decimal(f'1.{"0"*decimals}')
     return float(Decimal(n).quantize(quant, rounding=ROUND_HALF_UP))
+
+def handle_escape(func):
+    """
+    装饰器：处理提示词中的转义字符
+    对于 nai_to_sd，我们不再对整个返回结果做替换，而是在生成每个 tag 时自行处理转义。
+    """
+    @wraps(func)
+    def wrapper(prompt: str) -> str:
+        if func.__name__ == 'nai_to_sd':
+            return func(prompt)
+        processed = Config.ESCAPE_PATTERN.sub(r"__ESC_\1__", prompt)
+        result = func(processed)
+        return re.sub(r"__ESC_([{}()[\]]])__", r"\1", result)
+    return wrapper
 
 def escape_inner_parentheses(text: str) -> str:
     """
