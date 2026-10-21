@@ -147,6 +147,14 @@ _HEAD_TEMPLATE = """<script>
 
 # 空状态的上传按钮默认只有内容高度，拖放热区比容器小很多；这里把它撑满。
 _UPLOAD_CSS = """
+.sdp-toolbar {
+    align-items: flex-start;
+    gap: 0;
+    margin-bottom: 4px;
+}
+.sdp-lang {
+    max-width: 148px;
+}
 .sdp-upload,
 .sdp-upload .upload-container,
 .sdp-upload .image-container {
@@ -323,13 +331,17 @@ class GradioInterface:
         创建Gradio整体界面
         """
         with gr.Blocks(title=i18n.t("app.title"), head=self._head(), css=_UPLOAD_CSS) as demo:
-            language = gr.Dropdown(
-                choices=list(i18n.available_locales()),
-                value=i18n.get_locale(),
-                label=i18n.t("settings.language"),
-                interactive=True,
-            )
-            self._bind(language, ("label", "settings.language"))
+            with gr.Row(elem_classes=["sdp-toolbar"]):
+                language = gr.Dropdown(
+                    choices=list(i18n.available_locales()),
+                    value=i18n.get_locale(),
+                    label=i18n.t("settings.language"),
+                    interactive=True,
+                    scale=0,
+                    min_width=130,
+                    elem_classes=["sdp-lang"],
+                )
+                self._bind(language, ("label", "settings.language"))
             self._bind(gr.Markdown(i18n.t("app.heading")), ("value", "app.heading"))
             with gr.Tabs():
                 self._create_converter_tab()
