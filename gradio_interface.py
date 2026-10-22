@@ -1,3 +1,6 @@
+import json
+import os
+
 import gradio as gr
 
 import i18n
@@ -5,21 +8,182 @@ from config import Config
 from prompt_converter import PromptConverter
 from metadata_extractor import MetadataExtractor
 
+_HEAD_TEMPLATE = """<script>
+(function () {
+  var TITLES = __TITLES__;
+  var TAB_LABELS = __TAB_LABELS__;
+  var currentLocale = __DEFAULT_LOCALE__;
+
+  // Gradio 自带的文案（上传框、清除、下载等）会被编译进前端 bundle，
+  // 语言由 navigator.language 决定，没有对外接口。这里按文本节点精确匹配替换。
+  var FRAMEWORK_PAIRS = [
+    ["将图像拖放到此处", "Drop Image Here"],
+    ["将文件拖放到此处", "Drop File Here"],
+    ["将音频拖放到此处", "Drop Audio Here"],
+    ["将视频拖放到此处", "Drop Video Here"],
+    ["点击上传", "Click to Upload"],
+    ["通过 API 使用", "Use via API"],
+    ["使用 Gradio 构建", "Built with Gradio"],
+    ["构建于", "built with"],
+    ["正在上传...", "Uploading..."],
+    ["提交", "Submit"],
+    ["- 或 -", "- or -"],
+    ["或", "or"],
+    ["清除", "Clear"],
+    ["下载", "Download"]
+  ];
+
+  function applyTabLabels(locale) {
+    var labels = TAB_LABELS[locale];
+    if (!labels) {
+      return;
+    }
+    var buttons = document.querySelectorAll('[role="tab"]');
+    for (var i = 0; i < buttons.length && i < labels.length; i += 1) {
+      buttons[i].textContent = labels[i];
+    }
+  }
+
+  function localizeFrameworkText() {
+    if (!document.body) {
+      return;
+    }
+    var toEnglish = currentLocale !== "zh-CN";
+    var map = {};
+    FRAMEWORK_PAIRS.forEach(function (pair) {
+      map[toEnglish ? pair[0] : pair[1]] = toEnglish ? pair[1] : pair[0];
+    });
+    var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+    var node;
+    while ((node = walker.nextNode())) {
+      var raw = node.nodeValue || "";
+      var key = raw.trim();
+      if (Object.prototype.hasOwnProperty.call(map, key)) {
+        node.nodeValue = raw.replace(key, map[key]);
+      }
+    }
+  }
+
+  var localizeTimer = null;
+  function scheduleLocalize() {
+    if (localizeTimer) {
+      return;
+    }
+    localizeTimer = window.setTimeout(function () {
+      localizeTimer = null;
+      localizeFrameworkText();
+    }, 60);
+  }
+
+  function startFrameworkObserver() {
+    localizeFrameworkText();
+    if (window.MutationObserver && document.body) {
+      new MutationObserver(scheduleLocalize).observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true
+      });
+    }
+    [300, 1200, 3000].forEach(function (delay) {
+      window.setTimeout(localizeFrameworkText, delay);
+    });
+  }
+
+  // 文件拖到上传区之外时，浏览器默认会直接打开该文件，页面会跳走。
+  // 这里只拦文件类拖拽，且只 preventDefault、不阻断冒泡，上传区自身的逻辑不受影响。
+  function guardFileDrop(event) {
+    var types = event.dataTransfer && event.dataTransfer.types;
+    if (types && Array.prototype.indexOf.call(types, 'Files') !== -1) {
+      event.preventDefault();
+    }
+  }
+  document.addEventListener('dragover', guardFileDrop, true);
+  document.addEventListener('drop', guardFileDrop, true);
+
+  // 组件自己的拖放区只有按钮那么大；拖到左列空白处时，手动把文件塞给它的 input。
+  function forwardDropToUploader(event) {
+    var target = event.target;
+    var zone = target && target.closest ? target.closest('.sdp-dropzone') : null;
+    if (!zone) {
+      return;
+    }
+    if (target.closest('.sdp-dropzone button')) {
+      return;
+    }
+    var input = zone.querySelector('input[type="file"]');
+    var files = event.dataTransfer && event.dataTransfer.files;
+    if (!input || !files || !files.length) {
+      return;
+    }
+    event.preventDefault();
+    var transfer = new DataTransfer();
+    for (var i = 0; i < files.length; i += 1) {
+      transfer.items.add(files[i]);
+    }
+    input.files = transfer.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  document.addEventListener('drop', forwardDropToUploader, false);
+
+
+  window.__sdpSetLocale = function (locale) {
+    currentLocale = locale;
+    document.documentElement.lang = locale;
+    if (TITLES[locale]) {
+      document.title = TITLES[locale];
+    }
+    applyTabLabels(locale);
+    scheduleLocalize();
+  };
+
+  window.__sdpSetLocale(__DEFAULT_LOCALE__);
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", startFrameworkObserver);
+  } else {
+    startFrameworkObserver();
+  }
+})();
+</script>"""
+
+# 空状态的上传按钮默认只有内容高度，拖放热区比容器小很多；这里把它撑满。
+_UPLOAD_CSS = """
+.sdp-toolbar {
+    align-items: flex-start;
+    gap: 0;
+    margin-bottom: 4px;
+}
+.sdp-lang {
+    max-width: 148px;
+}
+.sdp-upload,
+.sdp-upload .upload-container,
+.sdp-upload .image-container {
+    min-height: 440px;
+    height: 100%;
+}
+.sdp-upload .upload-container > button,
+.sdp-upload .image-container > button {
+    min-height: 440px;
+    width: 100%;
+}
+"""
+
 
 class GradioInterface:
     def __init__(self):
-        # (组件, 文案 key, 更新哪个属性, 占位符变量)
+        # (组件, [(属性, 文案 key), ...], 占位符变量)
         self._i18n_targets = []
         self.demo = self._create_interface()
 
-    def _bind(self, component, key, attr="label", **variables):
-        self._i18n_targets.append((component, key, attr, variables))
+    def _bind(self, component, *specs, **variables):
+        """specs 是 (属性, key) 的若干对；同一组件可同时绑定 label 与 placeholder。"""
+        self._i18n_targets.append((component, specs, variables))
         return component
 
     def _translated_updates(self):
         updates = []
-        for _component, key, attr, variables in self._i18n_targets:
-            updates.append(gr.update(**{attr: i18n.t(key, **variables)}))
+        for _component, specs, variables in self._i18n_targets:
+            updates.append(gr.update(**{attr: i18n.t(key, **variables) for attr, key in specs}))
         return updates
 
     def switch_language(self, locale: str):
@@ -27,13 +191,28 @@ class GradioInterface:
         i18n.set_locale(locale)
         return self._translated_updates()
 
+    @staticmethod
+    def _head() -> str:
+        catalogs = i18n.load_catalogs()
+        titles = {locale: catalogs[locale]["app.title"] for locale in i18n.available_locales()}
+        tab_labels = {
+            locale: [catalogs[locale]["tabs.converter"], catalogs[locale]["tabs.metadata"]]
+            for locale in i18n.available_locales()
+        }
+        return (
+            _HEAD_TEMPLATE
+            .replace("__TITLES__", json.dumps(titles, ensure_ascii=False))
+            .replace("__TAB_LABELS__", json.dumps(tab_labels, ensure_ascii=False))
+            .replace("__DEFAULT_LOCALE__", json.dumps(i18n.get_locale()))
+        )
+
     def _create_converter_tab(self):
         """
         创建提示词格式转换器标签页
         """
         with gr.Tab(i18n.t("tabs.converter")) as converter_tab:
-            self._bind(converter_tab, "tabs.converter")
-            self._bind(gr.Markdown(i18n.t("converter.heading")), "converter.heading", "value")
+            self._bind(converter_tab, ("label", "tabs.converter"))
+            self._bind(gr.Markdown(i18n.t("converter.heading")), ("value", "converter.heading"))
             with gr.Row():
                 # NAI格式输入区域
                 with gr.Column():
@@ -42,14 +221,18 @@ class GradioInterface:
                         placeholder=i18n.t("converter.nai_placeholder"),
                         lines=8
                     )
-                    self._bind(nai_input, "converter.nai_label")
+                    self._bind(
+                        nai_input,
+                        ("label", "converter.nai_label"),
+                        ("placeholder", "converter.nai_placeholder"),
+                    )
                     with gr.Row():
                         nai_to_sd_btn = self._bind(
-                            gr.Button(i18n.t("converter.nai_to_sd")), "converter.nai_to_sd", "value")
+                            gr.Button(i18n.t("converter.nai_to_sd")), ("value", "converter.nai_to_sd"))
                         nai_copy_btn = self._bind(
-                            gr.Button(i18n.t("common.copy")), "common.copy", "value")
+                            gr.Button(i18n.t("common.copy")), ("value", "common.copy"))
                         nai_reset_btn = self._bind(
-                            gr.Button(i18n.t("common.reset")), "common.reset", "value")
+                            gr.Button(i18n.t("common.reset")), ("value", "common.reset"))
                 # SD格式输入区域
                 with gr.Column():
                     sd_input = gr.Textbox(
@@ -57,14 +240,18 @@ class GradioInterface:
                         placeholder=i18n.t("converter.sd_placeholder"),
                         lines=8
                     )
-                    self._bind(sd_input, "converter.sd_label")
+                    self._bind(
+                        sd_input,
+                        ("label", "converter.sd_label"),
+                        ("placeholder", "converter.sd_placeholder"),
+                    )
                     with gr.Row():
                         sd_to_nai_btn = self._bind(
-                            gr.Button(i18n.t("converter.sd_to_nai")), "converter.sd_to_nai", "value")
+                            gr.Button(i18n.t("converter.sd_to_nai")), ("value", "converter.sd_to_nai"))
                         sd_copy_btn = self._bind(
-                            gr.Button(i18n.t("common.copy")), "common.copy", "value")
+                            gr.Button(i18n.t("common.copy")), ("value", "common.copy"))
                         sd_reset_btn = self._bind(
-                            gr.Button(i18n.t("common.reset")), "common.reset", "value")
+                            gr.Button(i18n.t("common.reset")), ("value", "common.reset"))
 
                 # 绑定转换按钮事件
                 nai_to_sd_btn.click(
@@ -98,27 +285,43 @@ class GradioInterface:
                 nai_reset_btn.click(fn=lambda: "", outputs=[nai_input])
                 sd_reset_btn.click(fn=lambda: "", outputs=[sd_input])
 
+    @staticmethod
+    def _localize_metadata_result(result: dict) -> dict:
+        """把解析结果的 code 翻成当前语言；没有图片时返回空对象，不显示报错。"""
+        if "error_code" in result:
+            code = result["error_code"]
+            if "detail" in result:
+                return {"error": i18n.t(code, detail=result["detail"])}
+            return {"error": i18n.t(code)}
+        if "message_code" in result:
+            return {"message": i18n.t(result["message_code"])}
+        return result
+
+    def extract_metadata(self, file_path):
+        return self._localize_metadata_result(MetadataExtractor.extract_metadata(file_path))
+
     def _create_metadata_tab(self):
         """
         创建图片元数据探测器标签页
         """
         with gr.Tab(i18n.t("tabs.metadata")) as metadata_tab:
-            self._bind(metadata_tab, "tabs.metadata")
+            self._bind(metadata_tab, ("label", "tabs.metadata"))
             with gr.Row():
-                with gr.Column(scale=1):
+                with gr.Column(scale=1, elem_classes=["sdp-dropzone"]):
                     img_input = gr.Image(
                         label=i18n.t("metadata.upload_label"),
                         height=500,
                         sources=["upload"],
-                        type="filepath"
+                        type="filepath",
+                        elem_classes=["sdp-upload"],
                     )
-                    self._bind(img_input, "metadata.upload_label")
+                    self._bind(img_input, ("label", "metadata.upload_label"))
                 with gr.Column(scale=1):
                     # gr.JSON 不支持 height 参数（gradio 4.x 起），传了会在实例化时抛 TypeError
                     meta_output = gr.JSON(label=i18n.t("metadata.output_label"))
-                    self._bind(meta_output, "metadata.output_label")
+                    self._bind(meta_output, ("label", "metadata.output_label"))
                     img_input.change(
-                        fn=MetadataExtractor.extract_metadata,
+                        fn=self.extract_metadata,
                         inputs=[img_input],
                         outputs=[meta_output]
                     )
@@ -127,27 +330,32 @@ class GradioInterface:
         """
         创建Gradio整体界面
         """
-        with gr.Blocks(title=i18n.t("app.title")) as demo:
-            language = gr.Dropdown(
-                choices=list(i18n.available_locales()),
-                value=i18n.get_locale(),
-                label=i18n.t("settings.language"),
-                interactive=True,
-            )
-            self._bind(language, "settings.language")
-            self._bind(gr.Markdown(i18n.t("app.heading")), "app.heading", "value")
+        with gr.Blocks(title=i18n.t("app.title"), head=self._head(), css=_UPLOAD_CSS) as demo:
+            with gr.Row(elem_classes=["sdp-toolbar"]):
+                language = gr.Dropdown(
+                    choices=list(i18n.available_locales()),
+                    value=i18n.get_locale(),
+                    label=i18n.t("settings.language"),
+                    interactive=True,
+                    scale=0,
+                    min_width=130,
+                    elem_classes=["sdp-lang"],
+                )
+                self._bind(language, ("label", "settings.language"))
+            self._bind(gr.Markdown(i18n.t("app.heading")), ("value", "app.heading"))
             with gr.Tabs():
                 self._create_converter_tab()
                 self._create_metadata_tab()
             footer = gr.Markdown(
                 i18n.t("app.footer", version=gr.__version__)
             )
-            self._bind(footer, "app.footer", "value", version=gr.__version__)
+            self._bind(footer, ("value", "app.footer"), version=gr.__version__)
 
             language.change(
                 fn=self.switch_language,
                 inputs=[language],
                 outputs=[target[0] for target in self._i18n_targets],
+                js="(locale) => { window.__sdpSetLocale(locale); return locale; }",
             )
         return demo
 
@@ -155,8 +363,9 @@ class GradioInterface:
         """
         启动Gradio界面
         """
+        port = int(os.environ.get("SDPROMPT_PORT", Config.DEFAULT_PORT))
         self.demo.launch(
-            server_port=Config.DEFAULT_PORT,
+            server_port=port,
             server_name="127.0.0.1",
             show_error=True,
             share=False,

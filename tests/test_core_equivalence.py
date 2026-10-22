@@ -64,7 +64,7 @@ def test_corpus_is_large_enough():
 
 
 def test_module_version_matches_project():
-    assert core.core_version() == "2.0.0"
+    assert core.core_version() == "2.1.0"
 
 
 def test_parse_matches_reference():

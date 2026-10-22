@@ -54,6 +54,28 @@
 - **i18n.py + locales/**  
   极简国际化：`zh-CN.json` / `en-US.json` 两个 catalog，缺 key 回退默认语言并记录。
 
+## 快速开始（Windows）
+
+双击仓库里的 `start.bat`，或在命令行运行：
+
+```bat
+start.bat
+```
+
+它会依次检查 Python 版本、运行依赖、Rust 扩展三项，缺什么补什么，然后启动并在浏览器里打开界面。
+
+只想检查环境、不安装也不启动：
+
+```bat
+python start.py --check
+```
+
+Linux / macOS 没有 `.bat`，直接用：
+
+```bash
+python start.py
+```
+
 ## 安装
 
 1. **克隆仓库**
@@ -115,6 +137,28 @@
    ```
 
 
+
+## 常见问题
+
+**启动后立刻退出，日志里有 `httpx.ReadTimeout` 或 `ConnectTimeout`**
+
+机器装了系统代理，而 Gradio 打开浏览器前会先探活 `127.0.0.1:8080`，代理把这个请求绕到了外网。
+程序启动时会自动把回环地址并入 `NO_PROXY` 并关闭 Gradio 遥测；如果仍然出现，检查外部环境变量是否把 `NO_PROXY` 覆盖掉了。
+
+**启动报 `Cannot find empty port in range: 8080-8080`**
+
+8080 被别的程序占着，常见是上一次没关干净的黑窗口。`start.bat` 会从 8080 往后自动找空端口，并在窗口里打印实际地址（如 `http://127.0.0.1:8081`）。
+
+想腾出 8080，先查是谁占用，再结束它：
+
+```bat
+netstat -ano | findstr :8080
+taskkill /PID <上面查到的 PID> /F
+```
+
+**`ModuleNotFoundError: No module named 'sdprompt_core'`**
+
+Rust 扩展没装。用 `start.bat`（或 `python start.py`）会自动补装。
 
 ## 参与开发
 
