@@ -8,6 +8,12 @@ def setup_logging() -> logging.Logger:
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
 
+    # main / metadata_extractor / image_processor 都会调用本函数，
+    # 而 getLogger(__name__) 每次都返回同一个 logger；不判空就会重复挂 handler，
+    # 同一条日志被打印多遍。
+    if logger.handlers:
+        return logger
+
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
     # 控制台处理器
